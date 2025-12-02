@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Recommendations for {{ source_movie.title }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Recommendations</h1>
+        
+        <div class="source-movie">
+            <h2>Based on: {{ source_movie.title }}</h2>
+            <p><strong>Genres:</strong> {{ source_movie.genres }}</p>
+        </div>
+        
+        <h2>Similar Movies</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Genres</th>
+                    <th>Avg Rating</th>
+                    <th>Match Score</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rec in recommendations %}
+                <tr>
+                    <td>{{ rec.title }}</td>
+                    <td>{{ rec.genres }}</td>
+                    <td>{{ "%.2f"|format(rec.avg_rating) }}</td>
+                    <td>{{ rec.match_score }}</td>
+                    <td>
+                        <a href="/movie/{{ rec.movieId }}" class="btn-small">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="buttons">
+            <a href="/" class="btn">Home</a>
+            <a href="/movies" class="btn">All Movies</a>
+            <a href="/movie/{{ source_movie.id }}" class="btn">Back to Movie</a>
+        </div>
+    </div>
+</body>
+</html>

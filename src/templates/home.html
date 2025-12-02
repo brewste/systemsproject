@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MovieLens Explorer - Discover & Recommend Films</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1 class="home-title">MovieLens Explorer</h1>
+        <p class="subtitle">Uncover hidden gems, explore thousands of films, and discover your next favorite movie through intelligent recommendations</p>
+        
+        <div class="home-search-section">
+            <div class="search-container">
+                <input type="text" id="movie-search" class="search-input" placeholder="Search for a movie..." autocomplete="off">
+                <div id="search-results" class="search-results"></div>
+            </div>
+            <a href="/movies" class="btn btn-primary">Browse Popular Movies</a>
+        </div>
+        <div class="home-buttons-below">
+            <a href="/genre-profile" class="btn btn-secondary">My Genre Profile</a>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <h2>{{ total_movies }}</h2>
+                <p>Total Movies</p>
+            </div>
+            <div class="stat-box">
+                <h2>{{ total_ratings }}</h2>
+                <p>Total Ratings</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const searchInput = document.getElementById('movie-search');
+        const searchResults = document.getElementById('search-results');
+        let searchTimeout;
+
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.trim();
+            
+            // Clear previous timeout
+            clearTimeout(searchTimeout);
+            
+            // Clear results if query is empty
+            if (query.length === 0) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            // Debounce the search - wait 300ms after user stops typing
+            searchTimeout = setTimeout(() => {
+                performSearch(query);
+            }, 300);
+        });
+
+        function performSearch(query) {
+            if (query.length < 1) {
+                searchResults.innerHTML = '';
+                searchResults.style.display = 'none';
+                return;
+            }
+
+            fetch(`/api/search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    displayResults(data.movies);
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    searchResults.innerHTML = '<div class="search-error">Error searching movies</div>';
+                    searchResults.style.display = 'block';
+                });
+        }
+
+        function displayResults(movies) {
+            if (movies.length === 0) {
+                searchResults.innerHTML = '<div class="search-no-results">No movies found</div>';
+                searchResults.style.display = 'block';
+                return;
+            }
+
+            let html = '<ul class="search-results-list">';
+            movies.forEach(movie => {
+                html += `
+                    <li class="search-result-item">
+                        <a href="/movie/${movie.movieId}">
+                            <div class="search-result-title">${escapeHtml(movie.title)}</div>
+                            <div class="search-result-meta">
+                                <span>${escapeHtml(movie.genres)}</span>
+                                <span class="search-rating">⭐ ${movie.avg_rating.toFixed(1)}</span>
+                            </div>
+                        </a>
+                    </li>
+                `;
+            });
+            html += '</ul>';
+            searchResults.innerHTML = html;
+            searchResults.style.display = 'block';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Hide search results when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

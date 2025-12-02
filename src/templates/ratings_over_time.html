@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ratings Over Time - {{ movie.title }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Ratings Over Time</h1>
+        <h2>{{ movie.title }}</h2>
+        
+        <div class="movie-details">
+            <p><strong>Total Ratings:</strong> {{ ratings_data.total_ratings }}</p>
+            <p><strong>Average Rating:</strong> {{ "%.2f"|format(movie.avg_rating) }}</p>
+        </div>
+        
+        {% if ratings_data.total_ratings < 2 %}
+        <div class="error">
+            <p>Not enough data to display ratings over time. This movie has fewer than 2 ratings.</p>
+        </div>
+        {% else %}
+        <div class="chart-controls">
+            <div class="control-group">
+                <label for="period-toggle">View:</label>
+                <select id="period-toggle" class="control-select">
+                    <option value="month" selected>Monthly</option>
+                    <option value="year">Yearly</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="smoothing-toggle"> Smooth trendline
+                </label>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="ratingsChart"></canvas>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <p>Loading chart data...</p>
+        </div>
+        {% endif %}
+        
+        <div class="buttons">
+            <a href="/movie/{{ movie.movieId }}" class="btn">Back to Movie</a>
+            <a href="/" class="btn">Home</a>
+            <a href="/movies" class="btn">All Movies</a>
+        </div>
+    </div>
+    
+    <script>
+        const movieId = {{ movie.movieId }};
+        let chart = null;
+        let currentPeriod = 'month';
+        let smoothingEnabled = false;
+        
+        // Initialize chart with initial data
+        const initialData = {
+            periods: {{ ratings_data.periods | tojson }},
+            avg_ratings: {{ ratings_data.avg_ratings | tojson }},
+            rating_counts: {{ ratings_data.rating_counts | tojson }}
+        };
+        
+        function createChart(data, useSmoothing = false) {
+            const ctx = document.getElementById('ratingsChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+            
+            const labels = data.periods;
+            const ratings = data.avg_ratings;
+            const counts = data.rating_counts;
+            
+            // Calculate smoothed data if requested
+            let smoothedRatings = ratings;
+            if (useSmoothing && ratings.length > 2) {
+                smoothedRatings = calculateSmoothing(ratings);
+            }
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Average Rating',
+                        data: useSmoothing ? smoothedRatings : ratings,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: useSmoothing ? 0.4 : 0.1,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#007bff',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Average Rating Over Time',
+                            font: {
+                                size: 18
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const index = context.dataIndex;
+                                    return [
+                                        `Average Rating: ${context.parsed.y.toFixed(2)}`,
+                                        `Number of Ratings: ${counts[index]}`
+                                    ];
+                                },
+                                title: function(context) {
+                                    return `Period: ${context[0].label}`;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 0,
+                            max: 5,
+                            title: {
+                                display: true,
+                                text: 'Average Rating'
+                            },
+                            ticks: {
+                                stepSize: 0.5
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: currentPeriod === 'month' ? 'Month' : 'Year'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function calculateSmoothing(data) {
+            // Simple moving average with window size of 3
+            const smoothed = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i === 0) {
+                    smoothed.push((data[i] + data[i + 1]) / 2);
+                } else if (i === data.length - 1) {
+                    smoothed.push((data[i - 1] + data[i]) / 2);
+                } else {
+                    smoothed.push((data[i - 1] + data[i] + data[i + 1]) / 3);
+                }
+            }
+            return smoothed;
+        }
+        
+        function loadChartData(period) {
+            const loadingEl = document.getElementById('loading');
+            loadingEl.style.display = 'block';
+            
+            fetch(`/api/movie/${movieId}/ratings-over-time?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    loadingEl.style.display = 'none';
+                    currentPeriod = period;
+                    createChart(data, smoothingEnabled);
+                })
+                .catch(error => {
+                    loadingEl.style.display = 'none';
+                    console.error('Error loading chart data:', error);
+                    alert('Error loading chart data. Please try again.');
+                });
+        }
+        
+        // Event listeners
+        document.getElementById('period-toggle').addEventListener('change', function(e) {
+            loadChartData(e.target.value);
+        });
+        
+        document.getElementById('smoothing-toggle').addEventListener('change', function(e) {
+            smoothingEnabled = e.target.checked;
+            // Reload current data with new smoothing setting
+            fetch(`/api/movie/${movieId}/ratings-over-time?period=${currentPeriod}`)
+                .then(response => response.json())
+                .then(data => {
+                    createChart(data, smoothingEnabled);
+                })
+                .catch(error => {
+                    console.error('Error reloading chart:', error);
+                });
+        });
+        
+        // Initialize chart with initial data
+        if (initialData.periods.length > 0) {
+            createChart(initialData, smoothingEnabled);
+        }
+    </script>
+</body>
+</html>
+

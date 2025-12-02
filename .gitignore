@@ -1,0 +1,12 @@
+
+__pycache__/
+*.pyc
+*.pyo
+
+venv/
+.env
+
+search_logs.json
+.DS_Store
+
+

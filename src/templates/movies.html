@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Popular Movies</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Popular Movies ({{ count }})</h1>
+        <a href="/" class="btn btn-secondary">Back to Home</a>
+        
+        <table class="clickable-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Genres</th>
+                    <th>Avg Rating</th>
+                    <th>Rating Count</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for movie in movies %}
+                <tr onclick="window.location.href='/movie/{{ movie.movieId }}'" class="clickable-row">
+                    <td><strong>{{ movie.title }}</strong></td>
+                    <td>{{ movie.genres }}</td>
+                    <td>
+                        <span class="rating-badge">{{ "%.2f"|format(movie.avg_rating) }}</span>
+                    </td>
+                    <td>{{ movie.rating_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

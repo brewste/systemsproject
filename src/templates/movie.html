@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ movie.title }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="movie-header">
+            <h1>{{ movie.title }}</h1>
+            <div class="movie-meta">
+                <span class="movie-id">ID: {{ movie.movieId }}</span>
+                <span class="genres-badge">{{ movie.genres }}</span>
+            </div>
+        </div>
+        
+        <div class="ratings-summary">
+            <div class="rating-card">
+                <div class="rating-label">Average Rating</div>
+                <div class="star-rating">
+                    <div class="stars">
+                        {% set full_stars = (movie.avg_rating // 1) | int %}
+                        {% set has_half = (movie.avg_rating % 1) >= 0.5 %}
+                        {% for i in range(5) %}
+                            {% if i < full_stars %}
+                                <span class="star star-full">★</span>
+                            {% elif i == full_stars and has_half %}
+                                <span class="star star-half">
+                                    <span class="star-half-left">★</span>
+                                    <span class="star-half-right">★</span>
+                                </span>
+                            {% else %}
+                                <span class="star star-empty">★</span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="rating-value">{{ "%.2f"|format(movie.avg_rating) }} / 5.0</div>
+                </div>
+            </div>
+            
+            <div class="rating-card">
+                <div class="rating-label">Total Ratings</div>
+                <div class="rating-number">{{ movie.rating_count | int }}</div>
+                <div class="rating-subtext">user ratings</div>
+            </div>
+        </div>
+        
+        {% if recommendations %}
+        <div class="recommendations-section">
+            <h2>Similar Movies</h2>
+            <p class="recommendations-subtitle">Movies with similar genres you might enjoy</p>
+            <div class="recommendations-grid">
+                {% for rec in recommendations %}
+                <div class="recommendation-card" onclick="window.location.href='/movie/{{ rec.movieId }}'">
+                    <div class="rec-title">{{ rec.title }}</div>
+                    <div class="rec-genres">{{ rec.genres }}</div>
+                    <div class="rec-rating">
+                        <span class="rec-rating-value">{{ "%.2f"|format(rec.avg_rating) }}</span>
+                        <span class="rec-rating-count">({{ rec.rating_count }} ratings)</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if ratings_data.total_ratings >= 2 %}
+        <div class="chart-section">
+            <div class="section-header">
+                <h2>Ratings Over Time</h2>
+                <div class="chart-controls">
+                    <div class="control-group">
+                        <label for="period-toggle">View:</label>
+                        <select id="period-toggle" class="control-select">
+                            <option value="month">Monthly</option>
+                            <option value="year" selected>Yearly</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="ratingsChart"></canvas>
+            </div>
+            <div id="loading" class="loading" style="display: none;">
+                <p>Loading chart data...</p>
+            </div>
+        </div>
+        {% else %}
+        <div class="chart-section">
+            <div class="section-header">
+                <h2>Ratings Over Time</h2>
+            </div>
+            <div class="no-data-message">
+                <p>Not enough data to display ratings over time. This movie has fewer than 2 ratings.</p>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="action-buttons">
+            <a href="/" class="btn btn-secondary">Home</a>
+            <a href="/movies" class="btn btn-secondary">Popular Movies</a>
+        </div>
+    </div>
+    
+    {% if ratings_data.total_ratings >= 2 %}
+    <script id="ratings-data" type="application/json">
+        {
+            "movieId": {{ movie.movieId }},
+            "periods": {{ ratings_data.periods | tojson }},
+            "avg_ratings": {{ ratings_data.avg_ratings | tojson }},
+            "rating_counts": {{ ratings_data.rating_counts | tojson }}
+        }
+    </script>
+    <script>
+        // Parse data from JSON script tag
+        const dataScript = document.getElementById('ratings-data');
+        const serverData = JSON.parse(dataScript.textContent);
+        const movieId = serverData.movieId;
+        let chart = null;
+        let currentPeriod = 'year';
+        
+        // Initialize chart with initial data
+        const initialData = {
+            periods: serverData.periods,
+            avg_ratings: serverData.avg_ratings,
+            rating_counts: serverData.rating_counts
+        };
+        
+        function createChart(data) {
+            const ctx = document.getElementById('ratingsChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+            
+            const labels = data.periods;
+            const ratings = data.avg_ratings;
+            const counts = data.rating_counts;
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Average Rating',
+                        data: ratings,
+                        borderColor: '#ff6b35',
+                        backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointBackgroundColor: '#ff6b35',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#ff6b35',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    const index = context.dataIndex;
+                                    return [
+                                        `Average Rating: ${context.parsed.y.toFixed(2)}`,
+                                        `Number of Ratings: ${counts[index]}`
+                                    ];
+                                },
+                                title: function(context) {
+                                    return `Period: ${context[0].label}`;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 0,
+                            max: 5,
+                            title: {
+                                display: true,
+                                text: 'Average Rating',
+                                color: '#333',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: 0.5,
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: currentPeriod === 'month' ? 'Month' : 'Year',
+                                color: '#333',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                color: '#666'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function loadChartData(period) {
+            const loadingEl = document.getElementById('loading');
+            loadingEl.style.display = 'block';
+            
+            fetch(`/api/movie/${movieId}/ratings-over-time?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    loadingEl.style.display = 'none';
+                    currentPeriod = period;
+                    createChart(data);
+                })
+                .catch(error => {
+                    loadingEl.style.display = 'none';
+                    console.error('Error loading chart data:', error);
+                    alert('Error loading chart data. Please try again.');
+                });
+        }
+        
+        // Event listeners
+        document.getElementById('period-toggle').addEventListener('change', function(e) {
+            loadChartData(e.target.value);
+        });
+        
+        // Initialize chart with initial data
+        if (initialData.periods.length > 0) {
+            createChart(initialData);
+        }
+    </script>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Genre Profile</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>My Genre Profile</h1>
+        <p class="profile-subtitle">Discover your movie taste based on your search history</p>
+        
+        <div class="profile-stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ profile_data.total_searches }}</div>
+                <div class="stat-label">Total Searches</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ profile_data.genre_counts|length }}</div>
+                <div class="stat-label">Genres Explored</div>
+            </div>
+        </div>
+        
+        {% if profile_data.total_searches > 0 %}
+        <div class="top-genres-section">
+            <h2>Top 3 Genres</h2>
+            <div class="top-genres-list">
+                {% for genre, count in profile_data.top_genres %}
+                <div class="top-genre-item">
+                    <div class="genre-rank">#{{ loop.index }}</div>
+                    <div class="genre-info">
+                        <div class="genre-name">{{ genre }}</div>
+                        <div class="genre-stats">
+                            <span class="genre-count">{{ count }} searches</span>
+                            <span class="genre-percentage">{{ profile_data.genre_percentages[genre] }}%</span>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <h2>Searches by Genre</h2>
+            <div class="chart-container">
+                <canvas id="genreChart"></canvas>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No search history yet! Start searching for movies to build your genre profile.</p>
+            <a href="/" class="btn btn-primary">Start Searching</a>
+        </div>
+        {% endif %}
+        
+        <div class="action-buttons">
+            <a href="/" class="btn btn-secondary">Home</a>
+            <a href="/movies" class="btn btn-secondary">Popular Movies</a>
+        </div>
+    </div>
+    
+    {% if profile_data.total_searches > 0 %}
+    <script id="genre-data" type="application/json">
+        {
+            "genre_counts": {{ profile_data.genre_counts | tojson }},
+            "genre_percentages": {{ profile_data.genre_percentages | tojson }}
+        }
+    </script>
+    <script>
+        const dataScript = document.getElementById('genre-data');
+        const chartData = JSON.parse(dataScript.textContent);
+        
+        // Convert genre_counts object to sorted array
+        const genreEntries = Object.entries(chartData.genre_counts)
+            .map(([genre, count]) => ({
+                genre: genre,
+                count: count,
+                percentage: chartData.genre_percentages[genre] || 0
+            }))
+            .sort((a, b) => b.count - a.count);
+        
+        const ctx = document.getElementById('genreChart').getContext('2d');
+        
+        // Generate colors for pie chart
+        const colors = [
+            '#ff6b35', '#e55a2b', '#ff8c5a', '#ffa680', '#ffbfa6',
+            '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080'
+        ];
+        
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: genreEntries.map(e => e.genre),
+                datasets: [{
+                    data: genreEntries.map(e => e.count),
+                    backgroundColor: genreEntries.map((e, i) => colors[i % colors.length]),
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    title: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#ff6b35',
+                        borderWidth: 1,
+                        callbacks: {
+                            label: function(context) {
+                                const index = context.dataIndex;
+                                const entry = genreEntries[index];
+                                const total = genreEntries.reduce((sum, e) => sum + e.count, 0);
+                                return [
+                                    `${entry.genre}: ${entry.count} searches`,
+                                    `Percentage: ${entry.percentage}%`
+                                ];
+                            }
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'right',
+                        labels: {
+                            color: '#333',
+                            font: {
+                                size: 12
+                            },
+                            padding: 15,
+                            usePointStyle: true
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html>
+
