@@ -15,15 +15,12 @@ This project demonstrates the following DS 2022 concepts:
 
 ### Architecture
 
-![System Architecture](assets/architecture.png)
 
 The application follows a three-tier architecture:
 
 1. **Data Layer**: CSV files from MovieLens dataset (movies, ratings)
 2. **Processing Layer**: Python pandas for data transformation and aggregation
 3. **Presentation Layer**: Flask web server with HTML templates and REST API endpoints
-
-
 
 
 
@@ -65,26 +62,76 @@ The `run.sh` script builds a Docker image for the MovieLens API, stops and remov
 ### 4. Design Decisions
 
 Why this concept? Alternatives considered and why not chosen.
-Tradeoffs: Performance, cost, complexity, maintainability.
-Security/Privacy: Secrets mgmt, input validation, PII handling.
-Ops: Logs/metrics, scaling considerations, known limitations.
+
+
+**Security Ops:** The app follows secure practices including environment-based configuration for sensitive settings and strong input validation. Search terms are hashed before storage to protect user privacy, and no personally identifiable information is collected or transmitted. Additional safeguards include XSS protection, error handling, and configurable limits on all user inputs.
+
+**Logs/Metrics:** The app uses a structured logging system built on Python’s logging module, with both console and rotating file handlers to prevent uncontrolled file growth. Key events such as startup actions, user search queries, invalid inputs, file I/O issues, and route-level errors are recorded with appropriate log levels (such as DEBUG, INFO, ERROR, and WARNING). Logging behavior is fully configurable through environment variables. 
+
+**Scaling and Limitations:** The current architecture works well for a small dataset (used the smaller version from MovieLens) and light usage (minimal users), making it fully adequate for the scope of this project. Also, this project relies on in-memory data loaded from CSV files. While this is fine for the dataset size used here, supporting larger datasets or higher traffic would require components such as a dedicated database and a production-grade server, to ensure the system can scale reliably. Running on Flask’s development server without authentication, caching, or scaling support means the app isn’t suitable for handling many users, large datasets, or sensitive data in a production environment. 
+
+Additionally, the dataset itself is limited in range as well, as it only contains ratings up to 2018, meaning the system is lacking in more recent movie trends.
+
+**The Tradeoff:** The app is designed to be simple and low-cost (small dataset, data loading practices, Flash deployment), which makes it easier to build and maintain for a class project. This does mean lower performance and limited scalability, but those tradeoffs are acceptable given the project’s small scope and single-user environment.
+
+
 
 ### 5. Results & Evaluation
 
-Screenshots or sample outputs (place assets in /assets).
-Brief performance notes or resource footprint (if relevant).
-Validation/tests performed and outcomes.
+**Screenshots**
+
+**Home Page**
+![Home Page](assets/screenshots/home-page.png)
+*The main landing page with search functionality and statistics*
+
+**Movie Details Page**
+![Movie Details](assets/screenshots/movie-details.png)
+*Movie information with star ratings, similar movies recommendations, and ratings over time chart*
+
+**Genre Profile**
+![Genre Profile](assets/screenshots/genre-profile.png)
+*User's genre analytics with pie chart and top 3 genres*
+
+**Search Results**
+![Search Results](assets/screenshots/search-results.png)
+*Live search results appearing as user types*
+
+
+**Performance Notes**
+
+- **Startup Time**: ~2-3 seconds to load dataset (ml-latest-small: 9,742 movies, 100,836 ratings)
+- **Memory Usage**: ~50-100MB for in-memory data structures
+- **Response Times**: 
+  - Home page: <100ms
+  - Movie details: <200ms
+  - Search API: <150ms
+  - Ratings over time: <300ms (includes CSV read)
+
+
+**Validation/Tests Performed and Outcomes**
+
+The automated smoke tests (tests/test_api.py) confirm that all core endpoints (home page, movies, movie id, recommend id, and api movies) return successful responses and valid JSON where expected. 
+
+The security validation automated in code (src/app.py) does the following:
+- The function *sanitize_input(text, max_length=MAX_SEARCH_LENGTH)* removes null bytes, controls characters, enforces length limits
+- The function *hash_search_term(search_term)* hashes search terms with SHA256 before storage
+
+
 
 ### 6. What's Next 
 
 
-Planned improvements, refactors, and stretch features.
+**Planned improvements:** Code can be reorganized into clearer modules and services, with data access separated from routing logic. This code could also migrate from csv files to SQL for better performance and data loading/storage. Additional testing would also be necessary as the project grows. Future enhancements could include 
+- More advanced recommendation models (going beyond just genre and implementing a user’s watch history and current movie trends), which would require better data management (using database such as SQL) and more advanced datasets (could possibly combine information from different movie datasets).
+- Better analytics visualizations (which can be more personalized and insightful when generated among a backdrop of more user data, such as comparing results with other users)
+- User-focused upgrades like watchlists or movie posters to enhance engagement
+
 
 ### 7. Links 
 
 GitHub Repo Link: https://github.com/brewste/systemsproject.git
 
-*Note:*
+*Note: While i was originally working with another repo, I encountered errors with merging so switched to this new one, which is why most of the commits are more recent.*
 
 Public Cloud App (Azure): <INSERT-CLOUD-URL>
 
