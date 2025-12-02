@@ -68,9 +68,12 @@ def merge_movies_with_ratings(movies_df, avg_ratings):
 def load_data():
     """Load and prepare all movie data."""
     try:
-        # Use relative paths from the working directory (/app)
-        movies_path = f'assets/{DATASET_FOLDER}/movies.csv'
-        ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
+        # Get the project root directory (parent of src/)
+        # __file__ is data_management.py in src/, so go up one level
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        movies_path = os.path.join(project_root, 'assets', DATASET_FOLDER, 'movies.csv')
+        ratings_path = os.path.join(project_root, 'assets', DATASET_FOLDER, 'ratings.csv')
         
         logger.info(f"Loading movies from {movies_path}")
         movies_df = pd.read_csv(movies_path)
@@ -119,7 +122,9 @@ def get_ratings_over_time(movie_id, period='month'):
     """
     try:
         # Load raw ratings data (with Unix timestamps)
-        ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
+        # Get project root (parent of src/) - same as load_data()
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ratings_path = os.path.join(project_root, 'assets', DATASET_FOLDER, 'ratings.csv')
         raw_ratings = pd.read_csv(ratings_path)
         
         # Filter for the specific movie
