@@ -20,6 +20,14 @@ MAX_LIMIT = int(os.getenv('MAX_LIMIT', '1000'))
 LOG_FILE = os.getenv('LOG_FILE', 'app.log')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
 
+# Application constants
+MIN_RATING_COUNT = 10  # Minimum number of ratings for a movie to be considered popular/recommended
+MAX_RECOMMENDATIONS = 6  # Maximum number of recommendations to return
+MAX_SEARCH_RESULTS = 20  # Maximum number of search results to return
+HASH_LENGTH = 16  # Length of hashed search terms
+MAX_GENRE_NAME_LENGTH = 50  # Maximum length for genre names when sanitizing
+
+
 # Configure logging
 def setup_logging():
     """Configure application logging with file and console handlers."""
@@ -90,7 +98,23 @@ def hash_search_term(search_term):
     if not search_term:
         return None
     # Use SHA256 for one-way hashing
-    return hashlib.sha256(search_term.encode('utf-8')).hexdigest()[:16]  # Use first 16 chars for shorter hashes
+    return hashlib.sha256(search_term.encode('utf-8')).hexdigest()[:HASH_LENGTH]
+
+def genre_match_score(genres, source_genres_set):
+    """
+    Calculate genre match score between a movie's genres and source genres.
+    
+    Args:
+        genres: Comma-separated string of genres for a movie
+        source_genres_set: Set of source genres to match against
+    
+    Returns:
+        Integer representing number of matching genres (0 if no match)
+    """
+    if pd.isna(genres) or genres == '':
+        return 0
+    movie_genres = set([g.strip() for g in genres.split(',')])
+    return len(movie_genres.intersection(source_genres_set))
 
 def load_search_logs():
     """Load search logs from JSON file."""
@@ -198,9 +222,9 @@ def movies_page():
         # Validate and limit the limit parameter
         limit = max(1, min(limit, MAX_LIMIT))  # Ensure between 1 and MAX_LIMIT
         
-        # Filter movies with at least 10 ratings, then sort by average rating (highest first)
+        # Filter movies with at least MIN_RATING_COUNT ratings, then sort by average rating (highest first)
         popular_movies = movies_with_ratings[
-            movies_with_ratings['rating_count'] >= 10
+            movies_with_ratings['rating_count'] >= MIN_RATING_COUNT
         ].sort_values('avg_rating', ascending=False).head(limit)
         movies = popular_movies.to_dict('records')
         # Ensure rating_count is an integer
@@ -236,24 +260,19 @@ def movie_page(movie_id):
         # Get recommendations (same logic as recommend_page)
         source_genres = movie_data['genres']
         if pd.isna(source_genres) or source_genres == '':
-            genre_list = []
+            source_genres_set = set()
         else:
-            genre_list = [g.strip() for g in source_genres.split(',')]
+            source_genres_set = set([g.strip() for g in source_genres.split(',')])
         
-        def genre_match_score(genres):
-            if pd.isna(genres) or genres == '':
-                return 0
-            movie_genres = set([g.strip() for g in genres.split(',')])
-            source_genres_set = set(genre_list)
-            return len(movie_genres.intersection(source_genres_set))
-        
-        movies_with_ratings['match_score'] = movies_with_ratings['genres'].apply(genre_match_score)
+        movies_with_ratings['match_score'] = movies_with_ratings['genres'].apply(
+            lambda genres: genre_match_score(genres, source_genres_set)
+        )
         
         recommendations = movies_with_ratings[
             (movies_with_ratings['movieId'] != movie_id) & 
-            (movies_with_ratings['rating_count'] >= 10) &
+            (movies_with_ratings['rating_count'] >= MIN_RATING_COUNT) &
             (movies_with_ratings['match_score'] > 0)
-        ].sort_values(['match_score', 'avg_rating'], ascending=[False, False]).head(6)
+        ].sort_values(['match_score', 'avg_rating'], ascending=[False, False]).head(MAX_RECOMMENDATIONS)
         
         recs = recommendations.to_dict('records')
         # Ensure rating_count is an integer for recommendations
@@ -283,24 +302,19 @@ def recommend_page(movie_id):
     source_genres = source_movie.iloc[0]['genres']
     source_title = source_movie.iloc[0]['title']
     if pd.isna(source_genres) or source_genres == '':
-        genre_list = []
+        source_genres_set = set()
     else:
-        genre_list = [g.strip() for g in source_genres.split(',')]
+        source_genres_set = set([g.strip() for g in source_genres.split(',')])
     
-    def genre_match_score(genres):
-        if pd.isna(genres) or genres == '':
-            return 0
-        movie_genres = set([g.strip() for g in genres.split(',')])
-        source_genres_set = set(genre_list)
-        return len(movie_genres.intersection(source_genres_set))
-    
-    movies_with_ratings['match_score'] = movies_with_ratings['genres'].apply(genre_match_score)
+    movies_with_ratings['match_score'] = movies_with_ratings['genres'].apply(
+        lambda genres: genre_match_score(genres, source_genres_set)
+    )
     
     recommendations = movies_with_ratings[
         (movies_with_ratings['movieId'] != movie_id) & 
-        (movies_with_ratings['rating_count'] >= 10) &
+        (movies_with_ratings['rating_count'] >= MIN_RATING_COUNT) &
         (movies_with_ratings['match_score'] > 0)
-    ].sort_values(['match_score', 'avg_rating'], ascending=[False, False]).head(6)
+    ].sort_values(['match_score', 'avg_rating'], ascending=[False, False]).head(MAX_RECOMMENDATIONS)
     
     recs = recommendations.to_dict('records')
     # Ensure rating_count is an integer
@@ -374,13 +388,13 @@ def api_search():
         try:
             matching_movies = movies_with_ratings[
                 movies_with_ratings['title'].str.lower().str.contains(query_escaped, na=False, regex=True)
-            ].head(20)  # Limit to 20 results for performance
+            ].head(MAX_SEARCH_RESULTS)
         except Exception as e:
             logger.warning(f"Regex search failed for query '{query}', using fallback: {str(e)}")
             # Fallback to simple contains if regex fails
             matching_movies = movies_with_ratings[
                 movies_with_ratings['title'].str.lower().str.contains(query_lower, na=False, regex=False)
-            ].head(20)
+            ].head(MAX_SEARCH_RESULTS)
         
         result = matching_movies[['movieId', 'title', 'genres', 'avg_rating', 'rating_count']].to_dict('records')
         
@@ -390,7 +404,7 @@ def api_search():
             if movie.get('genres') and pd.notna(movie['genres']):
                 genres = [g.strip() for g in str(movie['genres']).split(',')]
                 # Sanitize genre names
-                sanitized_genres = [sanitize_input(g, 50) for g in genres if sanitize_input(g, 50)]
+                sanitized_genres = [sanitize_input(g, MAX_GENRE_NAME_LENGTH) for g in genres if sanitize_input(g, MAX_GENRE_NAME_LENGTH)]
                 all_genres.update(sanitized_genres)
         
         # Log the search if we found movies with genres
