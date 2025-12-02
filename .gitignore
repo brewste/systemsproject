@@ -9,4 +9,8 @@ venv/
 search_logs.json
 .DS_Store
 
+# Log files
+*.log
+app.log
+
 

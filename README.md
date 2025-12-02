@@ -25,32 +25,6 @@ The application follows a three-tier architecture:
 
 
 
-``
-carolinsis/
-├── src/
-│ ├── app.py # Flask application and routes
-│ ├── data_management.py # Data loading and processing
-│ ├── templates/ # HTML templates
-│ │ ├── home.html
-│ │ ├── movies.html
-│ │ ├── movie.html
-│ │ ├── recommendations.html
-│ │ └── error.html
-│ └── static/ # CSS stylesheets
-│ └── style.css
-├── assets/
-│ └── ml-latest-small/ # MovieLens dataset
-│ ├── movies.csv
-│ ├── ratings.csv
-│ ├── links.csv
-│ └── tags.csv
-├── Dockerfile # Container definition
-├── requirements.txt # Python dependencies
-├── .env.example # Environment variables template
-├── run.sh # One-command launcher
-├── LICENSE # MIT License
-└── README.md # This file
-``
 
 
 
@@ -108,8 +82,9 @@ Planned improvements, refactors, and stretch features.
 
 ### 7. Links 
 
-GitHub Repo: <INSERT-REPO-URL>
-*Note*
+GitHub Repo Link: https://github.com/brewste/systemsproject.git
+
+*Note:*
 
 Public Cloud App (Azure): <INSERT-CLOUD-URL>
 

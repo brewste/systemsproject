@@ -2,6 +2,9 @@ import pandas as pd
 from datetime import datetime
 import os
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Dataset configuration - change this to switch between datasets
 DATASET_FOLDER = 'ml-latest-small'  # Change to 'ml-latest' or your dataset folder name
@@ -10,7 +13,8 @@ def format_timestamp(timestamp):
     """Convert Unix timestamp to readable date format."""
     try:
         return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to format timestamp {timestamp}: {str(e)}")
         return timestamp
 
 def format_genres(genres):
@@ -63,27 +67,40 @@ def merge_movies_with_ratings(movies_df, avg_ratings):
 
 def load_data():
     """Load and prepare all movie data."""
-    # Use relative paths from the working directory (/app)
-    movies_path = f'assets/{DATASET_FOLDER}/movies.csv'
-    ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
-    
-    movies_df = pd.read_csv(movies_path)
-    ratings_df = pd.read_csv(ratings_path)
-    
-    # Format timestamps in the ratings dataframe
-    ratings_df['timestamp'] = ratings_df['timestamp'].apply(format_timestamp)
-    
-    # Format genres to be comma-separated
-    movies_df['genres'] = movies_df['genres'].apply(format_genres)
-    
-    # Format titles to move articles to the beginning
-    movies_df['title'] = movies_df['title'].apply(format_title)
-    
-    # Calculate average ratings (this is the main operation that needs all ratings)
-    avg_ratings = calculate_average_ratings(ratings_df)
-    movies_with_ratings = merge_movies_with_ratings(movies_df, avg_ratings)
-    
-    return movies_df, ratings_df, movies_with_ratings
+    try:
+        # Use relative paths from the working directory (/app)
+        movies_path = f'assets/{DATASET_FOLDER}/movies.csv'
+        ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
+        
+        logger.info(f"Loading movies from {movies_path}")
+        movies_df = pd.read_csv(movies_path)
+        logger.info(f"Loading ratings from {ratings_path}")
+        ratings_df = pd.read_csv(ratings_path)
+        
+        # Format timestamps in the ratings dataframe
+        ratings_df['timestamp'] = ratings_df['timestamp'].apply(format_timestamp)
+        
+        # Format genres to be comma-separated
+        movies_df['genres'] = movies_df['genres'].apply(format_genres)
+        
+        # Format titles to move articles to the beginning
+        movies_df['title'] = movies_df['title'].apply(format_title)
+        
+        # Calculate average ratings (this is the main operation that needs all ratings)
+        avg_ratings = calculate_average_ratings(ratings_df)
+        movies_with_ratings = merge_movies_with_ratings(movies_df, avg_ratings)
+        
+        logger.info(f"Data loaded successfully: {len(movies_df)} movies, {len(ratings_df)} ratings")
+        return movies_df, ratings_df, movies_with_ratings
+    except FileNotFoundError as e:
+        logger.error(f"Data file not found: {str(e)}", exc_info=True)
+        raise
+    except pd.errors.EmptyDataError as e:
+        logger.error(f"Data file is empty: {str(e)}", exc_info=True)
+        raise
+    except Exception as e:
+        logger.error(f"Error loading data: {str(e)}", exc_info=True)
+        raise
 
 def get_ratings_over_time(movie_id, period='month'):
     """
@@ -100,52 +117,71 @@ def get_ratings_over_time(movie_id, period='month'):
         - rating_counts: List of rating counts for each period
         - total_ratings: Total number of ratings
     """
-    # Load raw ratings data (with Unix timestamps)
-    ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
-    raw_ratings = pd.read_csv(ratings_path)
-    
-    # Filter for the specific movie
-    movie_ratings = raw_ratings[raw_ratings['movieId'] == movie_id].copy()
-    
-    if len(movie_ratings) == 0:
+    try:
+        # Load raw ratings data (with Unix timestamps)
+        ratings_path = f'assets/{DATASET_FOLDER}/ratings.csv'
+        raw_ratings = pd.read_csv(ratings_path)
+        
+        # Filter for the specific movie
+        movie_ratings = raw_ratings[raw_ratings['movieId'] == movie_id].copy()
+        
+        if len(movie_ratings) == 0:
+            logger.debug(f"No ratings found for movie {movie_id}")
+            return {
+                'periods': [],
+                'avg_ratings': [],
+                'rating_counts': [],
+                'total_ratings': 0
+            }
+        
+        # Convert Unix timestamp to datetime
+        movie_ratings['datetime'] = pd.to_datetime(movie_ratings['timestamp'], unit='s')
+        
+        # Group by period
+        if period == 'month':
+            movie_ratings['period'] = movie_ratings['datetime'].dt.to_period('M')
+            movie_ratings['period_label'] = movie_ratings['datetime'].dt.strftime('%Y-%m')
+        elif period == 'year':
+            movie_ratings['period'] = movie_ratings['datetime'].dt.to_period('Y')
+            movie_ratings['period_label'] = movie_ratings['datetime'].dt.strftime('%Y')
+        else:
+            raise ValueError("period must be 'month' or 'year'")
+        
+        # Group by period and calculate statistics
+        grouped = movie_ratings.groupby('period').agg({
+            'rating': ['mean', 'count'],
+            'period_label': 'first'
+        }).reset_index()
+        
+        grouped.columns = ['period', 'avg_rating', 'rating_count', 'period_label']
+        grouped = grouped.sort_values('period')
+        
+        # Ensure period labels are strings and properly formatted
+        if period == 'month':
+            grouped['period_label'] = grouped['period'].astype(str).str[:7]  # Format as YYYY-MM
+        else:
+            grouped['period_label'] = grouped['period'].astype(str).str[:4]  # Format as YYYY
+        
+        logger.debug(f"Ratings over time for movie {movie_id}: {len(grouped)} periods")
+        return {
+            'periods': grouped['period_label'].tolist(),
+            'avg_ratings': grouped['avg_rating'].round(2).tolist(),
+            'rating_counts': grouped['rating_count'].astype(int).tolist(),
+            'total_ratings': len(movie_ratings)
+        }
+    except FileNotFoundError as e:
+        logger.error(f"Ratings file not found: {str(e)}", exc_info=True)
         return {
             'periods': [],
             'avg_ratings': [],
             'rating_counts': [],
             'total_ratings': 0
         }
-    
-    # Convert Unix timestamp to datetime
-    movie_ratings['datetime'] = pd.to_datetime(movie_ratings['timestamp'], unit='s')
-    
-    # Group by period
-    if period == 'month':
-        movie_ratings['period'] = movie_ratings['datetime'].dt.to_period('M')
-        movie_ratings['period_label'] = movie_ratings['datetime'].dt.strftime('%Y-%m')
-    elif period == 'year':
-        movie_ratings['period'] = movie_ratings['datetime'].dt.to_period('Y')
-        movie_ratings['period_label'] = movie_ratings['datetime'].dt.strftime('%Y')
-    else:
-        raise ValueError("period must be 'month' or 'year'")
-    
-    # Group by period and calculate statistics
-    grouped = movie_ratings.groupby('period').agg({
-        'rating': ['mean', 'count'],
-        'period_label': 'first'
-    }).reset_index()
-    
-    grouped.columns = ['period', 'avg_rating', 'rating_count', 'period_label']
-    grouped = grouped.sort_values('period')
-    
-    # Ensure period labels are strings and properly formatted
-    if period == 'month':
-        grouped['period_label'] = grouped['period'].astype(str).str[:7]  # Format as YYYY-MM
-    else:
-        grouped['period_label'] = grouped['period'].astype(str).str[:4]  # Format as YYYY
-    
-    return {
-        'periods': grouped['period_label'].tolist(),
-        'avg_ratings': grouped['avg_rating'].round(2).tolist(),
-        'rating_counts': grouped['rating_count'].astype(int).tolist(),
-        'total_ratings': len(movie_ratings)
-    }
+    except Exception as e:
+        logger.error(f"Error getting ratings over time for movie {movie_id}: {str(e)}", exc_info=True)
+        return {
+            'periods': [],
+            'avg_ratings': [],
+            'rating_counts': [],
+            'total_ratings': 0
+        }
