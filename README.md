@@ -133,7 +133,6 @@ GitHub Repo Link: https://github.com/brewste/systemsproject.git
 
 *Note: While i was originally working with another repo, I encountered errors with merging so switched to this new one, which is why most of the commits are more recent.*
 
-Public Cloud App (Azure): <INSERT-CLOUD-URL>
 
 
 
