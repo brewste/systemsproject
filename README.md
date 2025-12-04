@@ -13,16 +13,24 @@ This project demonstrates the following DS 2022 concepts:
 - **Serving APIs** - Flask REST API for data serving
 - **Scripting Pipelines** - Automated data transformation and loading
 
-### Architecture
+
+Firstly, the project utilizes a Dockerfile container to package and deploy the app. The Dockerfile (which is summoned to be built by the run.sh file) is a text file that explains to the system how to build a Docker image. For this project, using a Dockerfile assures that Docker builds a base layer of the same Python version and dependencies used locally and copies data files so that paths are consistent, allowing the project to work on any machine. 
+
+Secondly, this project uses a Flask App and Flask REST API endpoints to return JSON. Flask fits well for the small lightweight build of this project, as serve both full HTML pages and JSON-based REST API responses from the same backend, making it ideal for dynamic and interactive features like search and charts. It also integrates directly with pandas so it can process movie data in memory without requiring a full database.
 
 
-The application follows a three-tier architecture:
+Thirdly, this project uses an automated data pipeline. The file data_management.py runs at application startup. It performs the following functions: 
+1. Loads Data: Reads raw csv files and creates pandas dataframes
+2. Transforms Data: Converts unix timestamps (for readablity\), separates delimiters for genre, formats titles
+3. Aggregates Data: Groups by MovieID and calculates average rating and rating count for each movie
+4. Merging Data: Merges csv file data together and produces a unified dataset
 
-1. **Data Layer**: CSV files from MovieLens dataset (movies, ratings)
-2. **Processing Layer**: Python pandas for data transformation and aggregation
-3. **Presentation Layer**: Flask web server with HTML templates and REST API endpoints
+The use of pandas data frames is very advantageous in this case, as the data provided is separated into different csv files that need to be merged and sorted according to the most relevant features and averages. An automated data pipeline allowed me to organize, clean, and use real-world data all with one command. It also includes error handling and progress logs in case something goes wrong in the process. 
 
 
+### Architecture Diagram
+
+![Architecture Diagram](assets/screenshots/arc_diagram.png)
 
 
 ### Data Source
@@ -61,18 +69,20 @@ The `run.sh` script builds a Docker image for the MovieLens API, stops and remov
 
 ### 4. Design Decisions
 
-Why this concept? Alternatives considered and why not chosen.
+**Security Ops:** The app follows secure practices including environment-based configuration for sensitive settings: 
+- Search terms are hashed before storage to protect user privacy.
+- No personally identifiable information is collected or transmitted.
+- All configuration uses os.getenv()  (No hardcoding)
+- No passwords or API keys in code (Azure credentials stored in GitHub Secrets)
 
 
-**Security Ops:** The app follows secure practices including environment-based configuration for sensitive settings and strong input validation. Search terms are hashed before storage to protect user privacy, and no personally identifiable information is collected or transmitted. Additional safeguards include XSS protection, error handling, and configurable limits on all user inputs.
+**Logs/Metrics:** The app uses a structured logging system built on Python’s logging module, with both console and rotating file handlers. Key events such as startup actions, user search queries, invalid inputs, file I/O issues, and route-level errors are recorded with log levels (such as DEBUG, INFO, ERROR, and WARNING). Logging behavior is fully configurable through environment variables. 
 
-**Logs/Metrics:** The app uses a structured logging system built on Python’s logging module, with both console and rotating file handlers to prevent uncontrolled file growth. Key events such as startup actions, user search queries, invalid inputs, file I/O issues, and route-level errors are recorded with appropriate log levels (such as DEBUG, INFO, ERROR, and WARNING). Logging behavior is fully configurable through environment variables. 
+**Scaling and Limitations:** The current architecture works well for a small dataset (I used the smaller version from MovieLens) and light usage (minimal users), making it fully adequate for the scope of this project. Also, this project relies on in-memory data loaded from CSV files. 
 
-**Scaling and Limitations:** The current architecture works well for a small dataset (used the smaller version from MovieLens) and light usage (minimal users), making it fully adequate for the scope of this project. Also, this project relies on in-memory data loaded from CSV files. While this is fine for the dataset size used here, supporting larger datasets or higher traffic would require components such as a dedicated database and a production-grade server, to ensure the system can scale reliably. Running on Flask’s development server without authentication, caching, or scaling support means the app isn’t suitable for handling many users, large datasets, or sensitive data in a production environment. 
+While this is fine for the dataset size used here, supporting larger datasets, higher user traffic, and sensitive data would require additional components, such as a dedicated database and a better server. Running on Flask’s development server without authentication, caching, or scaling support also adds limitations to scalability and security. Additionally, the dataset itself is limited in range as well, as it only contains ratings up to 2018, meaning the system is lacking in more recent movie trends.
 
-Additionally, the dataset itself is limited in range as well, as it only contains ratings up to 2018, meaning the system is lacking in more recent movie trends.
-
-**The Tradeoff:** The app is designed to be simple and low-cost (small dataset, data loading practices, Flash deployment), which makes it easier to build and maintain for a class project. This does mean lower performance and limited scalability, but those tradeoffs are acceptable given the project’s small scope and single-user environment.
+**The Tradeoff:** The app is designed to be simple and low-cost (small dataset, data loading practices, Flask deployment), which makes it easier to build and maintain for a class project. This does mean lower performance and limited scalability, but those tradeoffs are acceptable given the project’s small scope and single-user environment.
 
 
 
@@ -110,11 +120,20 @@ Additionally, the dataset itself is limited in range as well, as it only contain
 
 **Validation/Tests Performed and Outcomes**
 
-The automated smoke tests (tests/test_api.py) confirm that all core endpoints (home page, movies, movie id, recommend id, and api movies) return successful responses and valid JSON where expected. 
+
+The automated smoke tests (tests/test_api.py) confirm that all core endpoints return successful responses and valid JSON where expected. 
+
+*API Endpoints:*
+-  {BASE_URL}/  —> Gets home page
+- /movies —> Gets page with 50 most popular movies
+- /movie/1  —> Gets movie detail page for movie ID 1
+- /genre-profile —> Gets genre profile page 
+- GET /api/movies —> JSON API for Popular movies list
+- GET /api/movie/<id> —>  JSON API for movie details
 
 The security validation automated in code (src/app.py) does the following:
-- The function *sanitize_input(text, max_length=MAX_SEARCH_LENGTH)* removes null bytes, controls characters, enforces length limits
-- The function *hash_search_term(search_term)* hashes search terms with SHA256 before storage
+*  The function sanitize_input(text, max_length=MAX_SEARCH_LENGTH) removes null bytes, controls characters, enforces length limits
+* The function hash_search_term(search_term) hashes search terms with SHA256 before storage
 
 
 
@@ -133,7 +152,7 @@ GitHub Repo Link: https://github.com/brewste/systemsproject.git
 
 *Note: While i was originally working with another repo, I encountered errors with merging so switched to this new one, which is why most of the commits are more recent.*
 
-
+Azure Cloud Link: https://movielensexplorer-c7hxgxaueth8h7df.canadacentral-01.azurewebsites.net 
 
 
 
