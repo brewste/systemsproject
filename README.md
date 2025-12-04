@@ -4,7 +4,7 @@ A containerized Flask web application for exploring movie ratings and generating
 
 ## 1. Executive Summary
 
-
+I have often found myself struggling to understand the recommendation services on streaming platforms like Netflix, as these big brands make it surprisingly hard to find movies you’ll actually enjoy. They can sometimes drown users in long, endless lists and unclear “recommended” picks, which I’m never certain are for marketing purposes or actually generated from viewer rating. My solution offers a straightforward movie discovery tool built on real viewer ratings, helping people filter out low-quality titles and quickly find films similar to ones they already like. It supports fast searching, genre-based browsing, and visual insights like rating trends over time, making the experience a bit more personal and less overwhelming. It’s simple setup demonstrates how data and a clean interface can make movie selection a little easier and more informed for everyday users.
 
 ## 2. System Overview
 
